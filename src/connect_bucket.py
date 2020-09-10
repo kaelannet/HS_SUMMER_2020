@@ -8,13 +8,13 @@ class Connect_Bucket:
     def __init__(self):
         self.s3client = boto3.client('s3', aws_access_key_id = ACCESS_KEY, \
                                     aws_secret_access_key = SECRET_KEY)
-        read_response = self.s3client.get_object(Bucket = 'user-id', \
-                                        Key = 'my-key')
+        read_response = self.s3client.get_object(Bucket = 'XXXXXX', \
+                                        Key = 'XXXXXX')
         body = read_response['Body'].read()
         self.dataframe = pickle.loads(body)
 
-        read_response = self.s3client.get_object(Bucket = 'user-id', \
-                                        Key = 'error-keys')
+        read_response = self.s3client.get_object(Bucket = 'XXXXXX', \
+                                        Key = 'XXXXXX')
         body = read_response['Body'].read()
         self.error_examples = json.loads(body)
 
@@ -41,9 +41,9 @@ class Connect_Bucket:
 
     def save_err_examples(self, err_examples):
         self.s3client.put_object(
-            Bucket = 'user-id',\
-            Body = str(json.dumps(error_examples)), \
-            Key = 'error-keys')
+            Bucket ='XXXXX',\
+            Body = 'XXXXX', \
+            Key = 'XXXXX')
 
     def save_identified_errors(self, url, identified_errors):
         print(self.dataframe)
@@ -52,6 +52,6 @@ class Connect_Bucket:
         self.dataframe.at[url] = identified_errors
         to_write = pickle.dumps(self.dataframe)
         self.s3client.put_object(
-                Bucket = 'user-id', \
-                Body = to_write, \
-                Key = 'table-errors')
+                Bucket = 'XXXXX', \
+                Body = 'XXXXX', \
+                Key = 'XXXXX')

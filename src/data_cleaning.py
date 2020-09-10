@@ -4,12 +4,133 @@
 import pandas as pd
 from spacy.tokens import Doc
 import psycopg2
-import test
 import re
+import json
+import os
 
 ########################
 ### Load in the Data ###
 ########################
+def custom_json_to_dataframe(
+        file_name: str,
+        rel_path_to_file="../data/",
+        print_warnings=False):
+    """
+    The purpose of this function is to load a specified JSON file that
+    contains all of the articles (specifically their URLs, titles,
+    contents, correct entities, and perhaps even entities identified by
+    a custom model) that are in the dataset the user wishes to use into
+    a Pandas DataFrame for future use in the frontend portion of this
+    project.
+    :param file_name: This string specifies the file name of the JSON
+                      file that contains the user's custom data. Note
+                      that including the ".json" extension in this
+                      string is optional.
+    :type file_name: str
+    :param rel_path_to_file: This string specifies where that JSON file
+                             lives relative to this script. Its default
+                             value is in the data directory that can be
+                             reached from the root directory of this
+                             project.
+    :type rel_path_to_file: str
+    :returns: This function returns a Pandas DataFrame that contains all
+              of the custom data that lived in the specified JSON.
+    :rtype: Pandas DataFrame
+    **Notes**
+    1. https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.read_json.html
+    2. https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.reset_index.html
+    3. https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.rename.html
+    """
+    to_return = None
+    final_file_name = "{}.json".format(file_name) if ".json" not in file_name else file_name
+    # Get the absolute path to the file that we wish to load in
+    file_path = os.path.dirname(__file__)
+    full_path_to_file = os.path.join(file_path, rel_path_to_file)
+    ### Now, load it in and double-check to see that it is suitable to be
+    ### loaded in as a Pandas DataFrame.
+    # Load as a dictionary.
+    file_obj = open("{}/{}".format(full_path_to_file, final_file_name))
+    raw_json_dict = json.load(file_obj)
+    # Check that each principal key is in fact a URL.
+    principal_key_checker = [
+            key for key in raw_json_dict.keys() if all(["http" in key.lower(),
+                                                        ".com" in key.lower()])
+            ]
+    try:
+        # Use a try-except block for this check to handle the
+        # possibility that the keys are not article URLs.
+        assert len(principal_key_checker) == len(raw_json_dict)
+    except AssertionError:
+        if print_warnings:
+            print(
+                "**Warning**: The principal keys for this JSON file were found to NOT all be URLs. \
+                \nIf this was not intended check the outputed DataFrame and specified JSON file to see if it satisfies the required schema.."
+                )
+    # Check to see that each instance has the same required column keys.
+    # No need for a try-except block with this check.
+    columns_checker = [
+            value.keys() for value in raw_json_dict.values() if all(["title" in value.keys(),
+                                                                     "content" in value.keys(),
+                                                                     "entities" in value.keys()])
+            ]
+    assert len(columns_checker) == len(raw_json_dict)
+    ### After pasing these checks, we are now ready to load the JSON
+    ### file as a Pandas DataFrame
+    loaded_df = pd.read_json(
+                    open("{}/{}".format(full_path_to_file, final_file_name)),
+                    orient="index"
+                ).reset_index().rename(columns = {"index" : "url"})
+    ### Clean up the text column
+    final_df = loaded_df.copy()
+    final_df["content"] = final_df.apply(remove_html_tags, axis = 1)
+    to_return = final_df
+    file_obj.close()
+    return to_return
+
+def remove_html_tags(text_obj, pandas_apply_mode=True):
+    """
+    The purpose of this function is to clean up the strings of article
+    contents by removing any HTML tags present.
+    :param text_obj: This object specifies what will be cleaned. It can
+                     either be a single string that represents the
+                     content for a single article or the row of a Pandas
+                     DataFrame that represent the content of a single
+                     article that belongs to a collection of articles.
+                     If it is a DataFrame row, then that means that this
+                     funciton is being used in the `.apply()` method of
+                     a Pandas DataFrame.
+    :type text_obj: str or row of a Pandas DataFrame.
+    :param pandas_apply_mode: This Boolean controls whether or not this
+                              function is being used to clean a single
+                              string or an entire column of a DataFrame
+                              (which would be the case if this parameter
+                              is set to True which is its default
+                              value).
+    :type pandas_apply_mode: Bool
+    :returns: The function itself returns a string the represents the
+    cleaned text. Of course, if this function is used with the
+                 `.apply()` DataFrame method, then you will get a Pandas
+                 Series that contains of all the cleaned content
+                 strings.
+    :rtype: str
+    **Notes**
+    1. https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.apply.html
+    """
+    # Instantiate object that will look for text within html tags.
+    cleanr = re.compile("<.*?>|&([a-z0-9]+|#[0-9]{1,6}|#x[0-9a-f]{1,6});")
+    # Determine how we want to go about the cleaning.
+    if pandas_apply_mode:
+        # If the user is using this function to clean multiple strings
+        # that live in a column of a Pandas DataFrame.
+        content_str = text_obj.content
+        cleantext = re.sub(cleanr, "", content_str)
+    else:
+        # If the user is simply trying to use this function to clean out
+        # a single string.
+        # removes anything between <> and any other unneeded html tags
+        cleantext = re.sub(cleanr, "", text_obj)
+    return cleantext
+
 def large_data_extractor():
     data = pd.read_csv("../data/GMB_dataset.txt", sep="\t", encoding="latin1").drop(
         columns="Unnamed: 0"
@@ -86,17 +207,6 @@ def entity_compiler(entity_df, *args, **kwargs):
         entity_df["Sentence #"].iloc[0],
     )
     return to_return
-
-###########################
-### Cleans the HTML Data ###
-###########################
-def remove_html_tags(html_text):
-    # removes anything between <> and any other unneeded html tags
-    cleanr = re.compile("<.*?>|&([a-z0-9]+|#[0-9]{1,6}|#x[0-9a-f]{1,6});")
-    # cleans the html text
-    cleantext = re.sub(cleanr, "", html_text)
-    # returns the cleaned version of the text
-    return cleantext
 # ----------------------------------------------------------------------------------------------------------------------
 """
 geo = Geographical Entity
@@ -315,8 +425,3 @@ def connect_to_db(database, hostname, port, userid, passwrd):
     return conn, cursor
 
 #-----------------------------------------------------------------------------------------------------------------------
-
-# @st.cache( persist = True, hash_funcs = {preshed.maps.PreshMap : lambda x: hash(x), cymem.cymem.Pool: lambda x: hash(x)} )
-def test_clean():
-    annotated_entities, article_text, found_entities = test.create_test_text()
-    return (annotated_entities, article_text, found_entities)
