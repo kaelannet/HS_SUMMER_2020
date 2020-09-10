@@ -4,7 +4,7 @@
 * The main functionality of this project along with the project history have been removed and replaced with a bare-bones skeleton to protect proprietary code. I can however provide a presentation of the codes use if needed. 
 
 ## Contributors:
-* Kaelan Nettleship
+* Kaelan Nettleship - Lead
 * Sebastian Gonzales 
 * Alexis Soulias
 * Sophia Pentakalos
